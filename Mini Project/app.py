@@ -12,12 +12,22 @@ from backend.models import Employee
 
 load_dotenv()
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    try:
+        DATABASE_URL = st.secrets["DATABASE_URL"]
+    except (KeyError, FileNotFoundError):
+        DATABASE_URL = None
+
 st.set_page_config(page_title="People Analytics", page_icon="N", layout="wide", initial_sidebar_state="expanded")
 
 # ===============================================================================
 # DATABASE CONFIGURATION
 # ===============================================================================
-DB_CONFIG = {"uri": os.environ["DATABASE_URL"]}
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is missing. Add it to .env locally or Streamlit Secrets when deployed.")
+
+DB_CONFIG = {"uri": DATABASE_URL}
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SYNTHETIC_DIR = os.path.join(ROOT, "data", "synthetic")
