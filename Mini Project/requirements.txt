@@ -1,0 +1,9 @@
+pandas
+numpy
+faker
+python-dateutil
+streamlit
+plotly
+pymysql
+sqlalchemy
+python-dotenv
