@@ -1,6 +1,7 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 
+from dotenv import load_dotenv
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -9,13 +10,14 @@ from backend.dal import AnalyticsManager, EmployeeManager
 from backend.db_manager import DatabaseConnection
 from backend.models import Employee
 
+load_dotenv()
 
 st.set_page_config(page_title="People Analytics", page_icon="N", layout="wide", initial_sidebar_state="expanded")
 
-# ==============================================================================
-# DATABASE CONFIGURATION (Update password if changed in MySQL Workbench)
-# ==============================================================================
-DB_CONFIG = {"host": "localhost", "user": "root", "password": "Secure123", "database": "hr_oltp"}
+# ===============================================================================
+# DATABASE CONFIGURATION
+# ===============================================================================
+DB_CONFIG = {"uri": os.environ["DATABASE_URL"]}
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SYNTHETIC_DIR = os.path.join(ROOT, "data", "synthetic")
@@ -35,7 +37,7 @@ def inject_styles():
         .stApp { background:radial-gradient(circle at 78% -10%, #285158 0%, var(--canvas) 40%); color:var(--ink); }
         [data-testid="stSidebar"] { background:var(--rail); border-right:1px solid #30343b; }
         [data-testid="stSidebar"] > div:first-child { padding:2rem 1.25rem 1rem; }
-        [data-testid="stSidebar"] h1 { font-family:'Space Grotesk', sans-serif; font-size:1.45rem; letter-spacing:-.04em; margin:0 0 2.5rem .5rem; }
+        [data-testid="stSidebar"] h1 { font-family:'Space Grotesk', sans-serif; font-size:1.45rem; letter-spacing:-.04em; margin:0 0 2.5rem .5rem; color:#fff; }
         [data-testid="stSidebar"] hr { border-color:#383c43; margin:2.2rem .5rem 1.5rem; }
         [data-testid="stSidebar"] .stRadio label { color:#d9dbe0; font-weight:600; padding:.35rem 0; }
         [data-testid="stSidebar"] .stRadio div[role="radiogroup"] { gap:.1rem; }
@@ -92,7 +94,7 @@ def page_header(kicker, title, subtitle):
 
 def home_page():
     employees, projects, reviews = csv_data("employees.csv"), csv_data("projects.csv"), csv_data("reviews.csv")
-    page_header("Enterprise People Intelligence", "Northstar People Analytics", "A practical command center for workforce, projects, and performance")
+    page_header("Enterprise People Intelligence", "People Analytics", "A practical command center for workforce, projects, and performance")
     cols = st.columns(4)
     with cols[0]: metric("Employee records", f"{len(employees) / 1000:.0f}K+" if len(employees) else "25K+", "OLTP master data")
     with cols[1]: metric("MySQL schemas", "2", "hr_oltp + hr_olap")
@@ -154,7 +156,21 @@ def employee_page():
                     last_name=last.strip(),
                     department_id=department,
                     job_role=role.strip(),
-                    base_salary=salary
+                    base_salary=salary,
+                    gender=gender,
+                    date_of_birth=date.today() - timedelta(days=age * 365),
+                    marital_status=marital,
+                    distance_from_home=distance,
+                    education_level=education,
+                    education_field=education_field,
+                    hire_date=hire_date,
+                    job_level=job_level,
+                    overtime_eligible="True",
+                    stock_option_level=0,
+                    total_working_years=0,
+                    num_companies_worked=0,
+                    business_travel="Rarely",
+                    is_active="True",
                 )
                 success = manager.add_employee(new_emp)
                 if success:
@@ -166,7 +182,11 @@ def employee_page():
     # --- TAB 2: DIRECTORY ---
     with directory_tab:
         st.subheader("Employee directory")
-        employees = csv_data("employees.csv")
+        try:
+            employees = pd.DataFrame(EmployeeManager(DB_CONFIG).get_employees())
+        except Exception as error:
+            st.error(f"Unable to load employees from Aiven: {error}")
+            employees = pd.DataFrame()
         if employees.empty:
             st.info("No employee data is available yet.")
         else:

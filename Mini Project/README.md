@@ -79,7 +79,7 @@ Mini Project/
 Install these Python packages:
 
 ```bash
-py -3 -m pip install pandas numpy faker python-dateutil streamlit plotly pymysql sqlalchemy
+py -3 -m pip install pandas numpy faker python-dateutil streamlit plotly pymysql sqlalchemy python-dotenv
 ```
 
 You also need:
@@ -90,24 +90,7 @@ You also need:
 
 ## Database Configuration
 
-The current database settings are stored in:
-
-- `app.py`
-- `load.py`
-
-Update the host, username, password, and database values if your MySQL setup is different. Do not commit real passwords to a public repository.
-
-The default project configuration expects:
-
-```text
-Host: localhost
-User: root
-Password: Secure123
-Database: hr_oltp
-Port: 3306
-```
-
-Change this password before using the project outside your local computer.
+Database settings are loaded from `DATABASE_URL` in `.env`. Point this URI at the Aiven `hr_oltp` database. The loader refreshes `hr_olap` by calling `ETL_Master_Orchestration` after the OLTP load. Copy `.env.example` when setting up a new environment, then provide the Aiven service URI. The `.env` file is ignored by Git and must not be committed.
 
 ## Setup and Run Order
 

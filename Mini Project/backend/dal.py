@@ -25,7 +25,7 @@ class EmployeeManager:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT MAX(employee_id) AS max_id "
-                    "FROM hr_oltp.employees;"
+                    "FROM employees;"
                 )
                 row = cursor.fetchone()
                 max_id = row.get("max_id") if isinstance(row, dict) else row[0]
@@ -38,6 +38,27 @@ class EmployeeManager:
                     cursor.close()
                     
         return next_id + 1
+
+    def get_employees(self):
+        """Return employees from the configured database."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT employee_id, department_id, first_name, last_name, gender,
+                       date_of_birth, marital_status, distance_from_home,
+                       education_level, education_field, hire_date, job_role,
+                       job_level, base_salary, overtime_eligible, stock_option_level,
+                       total_working_years, num_companies_worked, business_travel,
+                       is_active
+                FROM employees
+                ORDER BY employee_id
+                """
+            )
+            return cursor.fetchall()
+        finally:
+            cursor.close()
 
     def get_employee_history(self, employee_id):
         """Return the recorded previous states for an employee."""
@@ -65,8 +86,8 @@ class EmployeeManager:
                     h.old_job_role,
                     h.old_job_level,
                     h.old_base_salary
-                FROM hr_oltp.employee_history h
-                LEFT JOIN hr_oltp.departments d
+                FROM employee_history h
+                LEFT JOIN departments d
                     ON d.department_id = h.old_department_id
                 WHERE h.employee_id = %s
                 ORDER BY h.change_date DESC, h.history_id DESC
@@ -83,82 +104,42 @@ class EmployeeManager:
                 cursor.close()
 
     def add_employee(self, employee: Employee):
-        """Inserts an employee with an auto-retry loop to completely eliminate duplicate key errors."""
-        conn = self.get_connection()
-        if not conn:
-            self.last_error = "Database connection failed."
-            return False
-
-        # Get our starting point (e.g., 25001)
-        current_id = self.get_next_employee_id()
-        salary_val = getattr(employee, 'base_salary', getattr(employee, 'salary', 5000))
-
-        query = """
-            INSERT INTO hr_oltp.employees (
-                employee_id, first_name, last_name, department_id, job_role, base_salary
-            ) VALUES (%s, %s, %s, %s, %s, %s);
-        """
-
-        # Self-healing loop: try up to 10 times, bumping the ID automatically on duplicate errors
-        for attempt in range(10):
-            employee.employee_id = current_id
-            values = (
-                employee.employee_id,
-                employee.first_name,
-                employee.last_name,
-                employee.department_id,
-                employee.job_role,
-                salary_val
-            )
-            
-            cursor = None
-            try:
-                cursor = conn.cursor()
-                cursor.execute(query, values)
-                conn.commit()
-                self.last_error = ""
-                return True  # Success! Exit the loop.
-            
-            except Exception as error:
-                if conn:
-                    conn.rollback()
-                
-                # If we get a Duplicate Key error (1062), bump the ID and try again instantly
-                if "1062" in str(error) or "Duplicate entry" in str(error):
-                    current_id += 1
-                    continue  # Loop around and try inserting current_id + 1
-                else:
-                    # If it's a different error, stop and report it
-                    self.last_error = f"Failed to add employee: {error}"
-                    return False
-            finally:
-                if cursor:
-                    cursor.close()
-                    
-        self.last_error = "Failed to add employee: Too many primary key collisions."
-        return False
-
-    def add_employee(self, employee: Employee):
-        """Inserts a new employee into hr_oltp with dynamic PK assignment."""
+        """Insert a complete employee record into the configured database."""
         # Always fetch fresh next ID directly at insertion time
         new_pk = self.get_next_employee_id()
         employee.employee_id = new_pk
 
         query = """
-            INSERT INTO hr_oltp.employees (
-                employee_id, first_name, last_name, department_id, job_role, base_salary
-            ) VALUES (%s, %s, %s, %s, %s, %s);
+            INSERT INTO employees (
+                employee_id, department_id, first_name, last_name, gender,
+                date_of_birth, marital_status, distance_from_home, education_level,
+                education_field, hire_date, job_role, job_level, base_salary,
+                overtime_eligible, stock_option_level, total_working_years,
+                num_companies_worked, business_travel, is_active
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
-        salary_val = getattr(employee, 'base_salary', getattr(employee, 'salary', 5000))
-
         values = (
             employee.employee_id,
+            employee.department_id,
             employee.first_name,
             employee.last_name,
-            employee.department_id,
+            getattr(employee, "gender", None),
+            getattr(employee, "date_of_birth", None),
+            getattr(employee, "marital_status", None),
+            getattr(employee, "distance_from_home", None),
+            getattr(employee, "education_level", None),
+            getattr(employee, "education_field", None),
+            getattr(employee, "hire_date", None),
             employee.job_role,
-            salary_val
+            getattr(employee, "job_level", None),
+            employee.base_salary,
+            getattr(employee, "overtime_eligible", None),
+            getattr(employee, "stock_option_level", None),
+            getattr(employee, "total_working_years", None),
+            getattr(employee, "num_companies_worked", None),
+            getattr(employee, "business_travel", None),
+            getattr(employee, "is_active", "True"),
         )
         return self._write(query, values, "add employee")
 
